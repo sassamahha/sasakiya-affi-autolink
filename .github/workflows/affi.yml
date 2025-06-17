@@ -24,3 +24,11 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: 'chore: auto-insert affiliate links 🚀'
+
+      - name: Deploy to WordPress
+        env:
+          WP_BASE_URL: ${{ secrets.WP_BASE_URL }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PW: ${{ secrets.WP_APP_PW }}
+        run: |
+          node scripts/deploy_wp.js
