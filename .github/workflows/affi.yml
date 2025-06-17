@@ -1,56 +1,24 @@
 name: Insert Affiliate Links
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'content/**'
-      - 'public/**'
-      - 'data/**'
-  workflow_dispatch: {}
+  workflow_dispatch: {}          # 手動実行のみ
 
 jobs:
   affi:
     runs-on: ubuntu-latest
 
     steps:
-      # ❶ フルクローン
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+    - uses: actions/setup-node@v4
+      with: { node-version: '20' }
 
-      # ❷ 依存インストール（lockfile 無しでも OK）
-      - name: Install deps
-        run: npm install --no-fund --no-audit
+    - name: Install deps
+      run: npm install --no-fund --no-audit   # package-lock が無ければ i
 
-      # ❸ アフィリンク挿入
-      - name: Run autolink script
-        run: node scripts/insert_links.js
-
-      # ❹ 最新 main をリベース取り込み
-      - name: Rebase onto latest origin/main
-        run: git pull --rebase --autostash origin main
-
-      # ❺ 自動コミット
-      - name: Auto-commit
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: 'chore: auto-insert affiliate links 🚀'
-          file_pattern: |
-            content/**
-            public/**
-            data/**
-          push_options: |
-            --force-with-lease
-
-      # ❻ WordPress へ反映
-      - name: Deploy to WordPress
-        env:
-          WP_BASE_URL: ${{ secrets.WP_BASE_URL }}
-          WP_USER:     ${{ secrets.WP_USER }}
-          WP_APP_PW:   ${{ secrets.WP_APP_PW }}
-        run: node scripts/deploy_wp.js
+    - name: Crawling & Update WP
+      env:
+        WP_BASE_URL: ${{ secrets.WP_BASE_URL }}
+        WP_USER:     ${{ secrets.WP_USER }}
+        WP_APP_PW:   ${{ secrets.WP_APP_PW }}
+      run: node scripts/deploy_wp.js
