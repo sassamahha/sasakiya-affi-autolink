@@ -17,6 +17,8 @@ jobs:
     steps:
       # 0. コード取得
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  
 
       # 1. Node.js 20 をセットアップ
       - uses: actions/setup-node@v4
