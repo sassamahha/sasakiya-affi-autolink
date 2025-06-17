@@ -13,9 +13,6 @@ jobs:
     - uses: actions/setup-node@v4
       with: { node-version: '20' }
 
-    - name: Install deps
-      run: npm install --no-fund --no-audit   # package-lock が無ければ i
-
     - name: Crawling & Update WP
       env:
         WP_BASE_URL: ${{ secrets.WP_BASE_URL }}
