@@ -41,12 +41,13 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: 'chore: auto-insert affiliate links 🚀'
-          # push --force-with-lease なら “他人の更新を消さず” に押し戻せる
           push_options: '--force-with-lease'
           file_pattern: |
             content/**
             public/**
             data/**
+            push_options: |
+              --force-with-lease
 
       # ❻ WordPress へデプロイ
       - name: Deploy to WordPress
