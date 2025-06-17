@@ -38,6 +38,10 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: 'chore: auto-insert affiliate links 🚀'
+          file_pattern: |
+            content/**
+            public/**
+            data/**
 
       # 5. (任意) WordPress へデプロイ
       - name: Deploy to WordPress
