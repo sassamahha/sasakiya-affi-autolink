@@ -1,0 +1,9 @@
+# Node
+node_modules/
+npm-debug.log*
+.npm/
+.eslintcache
+
+# 環境問わず無視して良いもの
+.DS_Store
+Thumbs.db
