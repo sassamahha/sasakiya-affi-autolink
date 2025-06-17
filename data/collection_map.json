@@ -1,2 +1,4 @@
-{ "title": "Tシャツ", "slug": "tshirts" },
-{ "title": "iPhoneケース", "slug": "iphone-case" }
+[
+  { "title": "Tシャツ", "slug": "tshirts" },
+  { "title": "iPhoneケース", "slug": "iphone-case" }
+]
