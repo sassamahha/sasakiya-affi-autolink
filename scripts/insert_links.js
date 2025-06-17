@@ -6,7 +6,7 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import { visit } from 'unist-util-visit';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 
 // --- データ読み込み ---
 const P = JSON.parse(fs.readFileSync('data/product_map.json', 'utf8'));
