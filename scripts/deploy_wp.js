@@ -1,24 +1,46 @@
+// scripts/deploy_wp.js
 import fs from 'fs';
 import fetch from 'node-fetch';
 
 const { WP_BASE_URL, WP_USER, WP_APP_PW } = process.env;
 const auth = Buffer.from(`${WP_USER}:${WP_APP_PW}`).toString('base64');
-const headers = { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' };
+const baseHeaders = {
+  'Authorization': `Basic ${auth}`,
+  'Content-Type': 'application/json',
+  'Accept': 'application/json'
+};
 
-const slug = 'test-article';              // ←ファイル名 → slug にするなど
-const content = fs.readFileSync('content/posts/test.md', 'utf8');
+// ① slug と本文を用意
+const file = 'content/posts/test.md';
+const slug = 'test';                              // 好きなルールで
+const content = fs.readFileSync(file, 'utf8');
 
-// 既存記事チェック
-let id;
-const res = await fetch(`${WP_BASE_URL}/wp-json/wp/v2/posts?slug=${slug}`);
-const json = await res.json();
-if (json.length) id = json[0].id;
+// ② slug で既存記事を探す
+const resFind = await fetch(`${WP_BASE_URL}/wp-json/wp/v2/posts?slug=${slug}`, { headers: baseHeaders });
+if (!resFind.ok) {
+  console.error('Find error', resFind.status, await resFind.text());
+  process.exit(1);
+}
+const existing = await resFind.json();
+const id = existing.length ? existing[0].id : null;
 
-const body = JSON.stringify({ title: slug, content, status: 'publish', slug });
+// ③ 本文を JSON に
+const payload = JSON.stringify({
+  title: slug,
+  content,
+  status: 'publish',
+  slug
+});
 
-const url = id 
-  ? `${WP_BASE_URL}/wp-json/wp/v2/posts/${id}`   // PUT 更新
-  : `${WP_BASE_URL}/wp-json/wp/v2/posts`;        // POST 新規
+// ④ 新規 or 更新
+const url = id
+  ? `${WP_BASE_URL}/wp-json/wp/v2/posts/${id}`
+  : `${WP_BASE_URL}/wp-json/wp/v2/posts`;
+const method = id ? 'PUT' : 'POST';
 
-await fetch(url, { method: id ? 'PUT' : 'POST', headers, body });
-console.log('WP deploy done');
+const resSave = await fetch(url, { method, headers: baseHeaders, body: payload });
+if (!resSave.ok) {
+  console.error('Save error', resSave.status, await resSave.text());
+  process.exit(1);
+}
+console.log(`${method} success ⇒`, (await resSave.json()).link);
