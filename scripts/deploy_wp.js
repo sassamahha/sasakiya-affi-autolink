@@ -1,67 +1,45 @@
-// scripts/deploy_wp.js
 import { addAffiliateLinks } from './insert_links.js';
 
 const { WP_BASE_URL, WP_USER, WP_APP_PW } = process.env;
 if (!WP_BASE_URL || !WP_USER || !WP_APP_PW) {
-  console.error('❌ 必須環境変数が足りません'); process.exit(1);
+  console.error('❌ WP_BASE_URL / USER / APP_PW が未設定'); process.exit(1);
 }
 
 const auth = 'Basic ' + Buffer.from(`${WP_USER}:${WP_APP_PW}`).toString('base64');
+const wp   = (url, opt = {}) => fetch(
+  `${WP_BASE_URL}/wp-json${url}`,
+  { headers: { Authorization: auth, 'Content-Type': 'application/json' }, ...opt }
+).then(async r => {
+  if (!r.ok) throw new Error(`${r.statusText} ${await r.text()}`);
+  return r;
+});
 
-const wpFetch = (url, opt = {}) =>
-  fetch(`${WP_BASE_URL}/wp-json${url}`, {
-    headers: { 'Authorization': auth, 'Content-Type': 'application/json' },
-    ...opt
-  }).then(async r => {
-    if (!r.ok) {
-      const txt = await r.text();
-      throw new Error(`${r.status} ${r.statusText}: ${txt}`);
-    }
-    return r;
-  });
-
-/* ──────────────────────────────────────────────
- * 1) 全記事の slug → id マップを作る
- *    X-WP-TotalPages ヘッダでページネートを制御
- * ────────────────────────────────────────────── */
-async function fetchAllPosts () {
-  const map = new Map();
+async function* fetchAllPosts () {
   const per = 100;
-  let page = 1;
+  let page  = 1;
   while (true) {
-    const res  = await wpFetch(`/wp/v2/posts?per_page=${per}&page=${page}`);
-    const json = await res.json();
-    json.forEach(p => map.set(p.slug, { id: p.id, html: p.content.rendered }));
-
-    const total = Number(res.headers.get('x-wp-totalpages')) || 1;
-    if (page >= total) break;
-    page++;
+    const r  = await wp(`/wp/v2/posts?per_page=${per}&page=${page}`);
+    const js = await r.json();
+    for (const p of js) yield p;
+    if (page++ >= +(r.headers.get('x-wp-totalpages') || 1)) break;
   }
-  return map;
 }
 
-/* ──────────────────────────────────────────────
- * 2) 各記事を置換して差分があれば PUT
- * ────────────────────────────────────────────── */
 (async () => {
-  const posts = await fetchAllPosts();
-  console.log(`📝 fetched ${posts.size} posts`);
+  let touched = 0, scanned = 0;
 
-  let updated = 0;
-  for (const { id, html } of posts.values()) {
-    const replaced = addAffiliateLinks(html);
-    if (replaced === html) continue;          // 変化なし
+  for await (const post of fetchAllPosts()) {
+    scanned++;
+    const replaced = await addAffiliateLinks(post.content.rendered);
+    if (replaced === post.content.rendered) continue;
 
-    await wpFetch(`/wp/v2/posts/${id}`, {
+    await wp(`/wp/v2/posts/${post.id}`, {
       method: 'PUT',
       body:   JSON.stringify({ content: replaced })
     });
-    console.log(`  ✔ updated id=${id}`);
-    updated++;
+    console.log(`✔ updated post#${post.id}`);
+    touched++;
   }
 
-  console.log(`🚀 finished. modified ${updated} / ${posts.size} posts`);
-})().catch(err => {
-  console.error('❌', err.message);
-  process.exit(1);
-});
+  console.log(`🏁 done. modified ${touched}/${scanned} posts`);
+})().catch(e => { console.error(e); process.exit(1); });
