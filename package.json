@@ -1,13 +1,13 @@
 {
   "name": "sasakiya-affi-autolink",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "dependencies": {
-    "unified": "^11.0.4",
+    "cheerio": "^1.0.0-rc.12",
+    "node-fetch": "^3.4.0",
     "remark-parse": "^10.0.2",
     "remark-stringify": "^10.0.2",
     "unist-util-visit": "^5.0.0",
-    "cheerio": "^1.0.0-rc.12",
-    "node-fetch": "^3.3.1"
+    "unified": "^10.1.2"
   }
 }
