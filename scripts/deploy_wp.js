@@ -1,86 +1,67 @@
 // scripts/deploy_wp.js
-// --------------------------------------------------
-// WP REST API で “同 slug の記事があれば更新、なければ新規投稿”
-// --------------------------------------------------
-const {
-  WP_BASE_URL,
-  WP_USER,
-  WP_APP_PW
-} = process.env;
+import { addAffiliateLinks } from './insert_links.js';
 
+const { WP_BASE_URL, WP_USER, WP_APP_PW } = process.env;
 if (!WP_BASE_URL || !WP_USER || !WP_APP_PW) {
-  console.error('❌ WP 環境変数が足りません');
-  process.exit(1);
+  console.error('❌ 必須環境変数が足りません'); process.exit(1);
 }
 
-const authHeader = 'Basic ' +
-  Buffer.from(`${WP_USER}:${WP_APP_PW}`).toString('base64');
+const auth = 'Basic ' + Buffer.from(`${WP_USER}:${WP_APP_PW}`).toString('base64');
 
-async function wpFetch (path, init = {}) {
-  const res = await fetch(`${WP_BASE_URL}/wp-json${path}`, {
-    headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-    ...init
+const wpFetch = (url, opt = {}) =>
+  fetch(`${WP_BASE_URL}/wp-json${url}`, {
+    headers: { 'Authorization': auth, 'Content-Type': 'application/json' },
+    ...opt
+  }).then(async r => {
+    if (!r.ok) {
+      const txt = await r.text();
+      throw new Error(`${r.status} ${r.statusText}: ${txt}`);
+    }
+    return r;
   });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`WP API ${res.status}: ${txt}`);
-  }
-  return res;
-}
 
-// ─────────────────────────────
-// ❶ まず全記事を slug ⇄ id で取得
-// ─────────────────────────────
+/* ──────────────────────────────────────────────
+ * 1) 全記事の slug → id マップを作る
+ *    X-WP-TotalPages ヘッダでページネートを制御
+ * ────────────────────────────────────────────── */
 async function fetchAllPosts () {
-  const perPage = 100;
+  const map = new Map();
+  const per = 100;
   let page = 1;
-  const map = new Map();         // slug → id
-
   while (true) {
-    const res  = await wpFetch(`/wp/v2/posts?per_page=${perPage}&page=${page}`);
+    const res  = await wpFetch(`/wp/v2/posts?per_page=${per}&page=${page}`);
     const json = await res.json();
-    json.forEach(p => map.set(p.slug, p.id));
+    json.forEach(p => map.set(p.slug, { id: p.id, html: p.content.rendered }));
 
-    // ← ここ！ 公式ヘッダ X-WP-TotalPages で終了判定
-    const totalPages = Number(res.headers.get('x-wp-totalpages') || 1);
-    if (page >= totalPages) break;
+    const total = Number(res.headers.get('x-wp-totalpages')) || 1;
+    if (page >= total) break;
     page++;
   }
   return map;
 }
 
-// ─────────────────────────────
-// ❷ ここでは例として 1 本だけデプロイ
-//    実際は MD → HTML 変換など行ってください
-// ─────────────────────────────
+/* ──────────────────────────────────────────────
+ * 2) 各記事を置換して差分があれば PUT
+ * ────────────────────────────────────────────── */
 (async () => {
-  const slug = 'sample-slug';
-  const body = {
-    title:   'サンプル投稿',
-    slug,
-    status:  'publish',
-    content: 'Hello WordPress from GitHub Actions!'
-  };
+  const posts = await fetchAllPosts();
+  console.log(`📝 fetched ${posts.size} posts`);
 
-  const postMap = await fetchAllPosts();
-  if (postMap.has(slug)) {
-    // 更新
-    const id = postMap.get(slug);
+  let updated = 0;
+  for (const { id, html } of posts.values()) {
+    const replaced = addAffiliateLinks(html);
+    if (replaced === html) continue;          // 変化なし
+
     await wpFetch(`/wp/v2/posts/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(body)
+      body:   JSON.stringify({ content: replaced })
     });
-    console.log(`PUT success → ${WP_BASE_URL}/${id}/`);
-  } else {
-    // 新規
-    const res = await wpFetch('/wp/v2/posts', {
-      method: 'POST',
-      body: JSON.stringify(body)
-    });
-    const json = await res.json();
-    console.log(`POST success → ${json.link}`);
+    console.log(`  ✔ updated id=${id}`);
+    updated++;
   }
+
+  console.log(`🚀 finished. modified ${updated} / ${posts.size} posts`);
 })().catch(err => {
-  console.error(err.message);
+  console.error('❌', err.message);
   process.exit(1);
 });
